@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Climate Intelligence | Heatwave Monitoring & Early Warning</title>
+  <meta name="description" content="Real-time Climate Intelligence dashboard for heatwave monitoring, risk assessment, and early warning dispatch.">
+  
+  <!-- Modern Typography (Inter Font) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet CSS for Geospatial Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="app-header">
+    <div class="header-branding">
+      <div class="logo-icon">🔥</div>
+      <div>
+        <h1 class="header-title">Climate Intelligence System</h1>
+        <p class="header-subtitle">Heatwave Monitoring, Prediction & Early Warning</p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <!-- Live Connection Status Pill -->
+      <div id="connectionPill" class="status-pill connected" title="Connection status to backend">
+        <span class="status-dot"></span>
+        <span id="connectionText">Connecting...</span>
+      </div>
+
+      <!-- Last Updated Clock -->
+      <div class="last-sync">
+        <span class="sync-label">Last Sync:</span>
+        <span id="lastSyncTime" class="sync-value">--:--:--</span>
+      </div>
+
+      <!-- Theme Switcher -->
+      <button id="themeToggleBtn" class="theme-toggle-btn" aria-label="Toggle light or dark theme" title="Toggle Theme">
+        <span id="themeIcon">☀️</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Dashboard Layout -->
+  <div class="app-container">
+    
+    <!-- Sidebar Navigation & Filters -->
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <label for="regionSelect" class="sidebar-label">Geographic Region</label>
+        <select id="regionSelect" class="custom-select">
+          <option value="ALL">All Regions (National Overview)</option>
+        </select>
+      </div>
+
+      <div class="sidebar-section">
+        <label for="trendDaysSelect" class="sidebar-label">Historical Analysis Period</label>
+        <select id="trendDaysSelect" class="custom-select">
+          <option value="7">Last 7 Days</option>
+          <option value="14">Last 14 Days</option>
+          <option value="30" selected>Last 30 Days</option>
+        </select>
+      </div>
+
+      <div class="sidebar-section system-status-box">
+        <h2 class="sidebar-subtitle">Telemetry Health</h2>
+        <div class="status-row">
+          <span>Backend URL</span>
+          <code id="apiBaseLabel">http://localhost:8000</code>
+        </div>
+        <div class="status-row">
+          <span>Data Transport</span>
+          <span id="transportType" class="badge-pill">SSE Stream</span>
+        </div>
+        <div class="status-row">
+          <span>Simulation Feed</span>
+          <span id="feedStatus" class="badge-pill active-pill">Active (5s)</span>
+        </div>
+      </div>
+
+      <div class="sidebar-legend">
+        <h2 class="sidebar-subtitle">IMD Heat Risk Tiers</h2>
+        <div class="legend-item"><span class="legend-badge tier-normal"></span> Normal (&lt; 40°C)</div>
+        <div class="legend-item"><span class="legend-badge tier-watch"></span> Watch (Yellow / 40°C)</div>
+        <div class="legend-item"><span class="legend-badge tier-warning"></span> Warning (Orange / 43°C)</div>
+        <div class="legend-item"><span class="legend-badge tier-severe"></span> Severe (Red / 45°C+)</div>
+      </div>
+    </aside>
+
+    <!-- Primary Operations Dashboard -->
+    <main class="dashboard-main">
+
+      <!-- 1. KPI Metric Cards -->
+      <section class="kpi-grid">
+        <div id="kpiHottest" class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-label">Hottest Region Now</span>
+            <span class="kpi-icon">🌡️</span>
+          </div>
+          <div id="kpiHottestVal" class="kpi-value">--</div>
+          <div id="kpiHottestSub" class="kpi-subtext">Calculating real-time peak...</div>
+        </div>
+
+        <div id="kpiAlerts" class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-label">Active Heat Alerts</span>
+            <span class="kpi-icon">🚨</span>
+          </div>
+          <div id="kpiAlertsVal" class="kpi-value">0</div>
+          <div id="kpiAlertsSub" class="kpi-subtext">All regional zones nominal</div>
+        </div>
+
+        <div id="kpiAvgTemp" class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-label">Average Temperature</span>
+            <span class="kpi-icon">📊</span>
+          </div>
+          <div id="kpiAvgTempVal" class="kpi-value">-- °C</div>
+          <div id="kpiAvgTempSub" class="kpi-subtext">Across active monitoring nodes</div>
+        </div>
+
+        <div id="kpiStations" class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-label">Reporting Stations</span>
+            <span class="kpi-icon">📡</span>
+          </div>
+          <div id="kpiStationsVal" class="kpi-value">-- / --</div>
+          <div id="kpiStationsSub" class="kpi-subtext">Telemetry streaming normal</div>
+        </div>
+      </section>
+
+      <!-- 2. Interactive Map & Trend Analytics (Side by Side) -->
+      <section class="visuals-grid">
+        
+        <!-- Leaflet Map Container -->
+        <div class="panel map-panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Geospatial Risk Distribution</h2>
+            <span class="panel-badge">Live Sensor Map</span>
+          </div>
+          <div class="map-wrapper">
+            <div id="stationMap"></div>
+          </div>
+        </div>
+
+        <!-- Chart.js Trend & Forecast Chart -->
+        <div class="panel chart-panel">
+          <div class="panel-header">
+            <h2 class="panel-title" id="chartHeading">Temperature Trend & 7-Day Forecast</h2>
+            <span class="panel-badge" id="chartRegionBadge">National</span>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="trendChart"></canvas>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- 3. Active Alerts Dispatch Center -->
+      <section class="panel alerts-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2 class="panel-title">Active Emergency Warnings & Advisories</h2>
+            <span id="alertsCountBadge" class="count-badge">0 Active</span>
+          </div>
+        </div>
+        <div id="alertsContainer" class="alerts-list">
+          <div class="empty-state">
+            <span class="empty-icon">✅</span>
+            <p>No active heatwave alerts. All monitored regions are within safe thresholds.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. Station Readings Live Table -->
+      <section class="panel table-panel">
+        <div class="panel-header table-header-flex">
+          <h2 class="panel-title">Live Weather Station Observations</h2>
+          <div class="table-search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="stationSearch" placeholder="Search by station or region name..." autocomplete="off">
+          </div>
+        </div>
+        
+        <div class="table-container">
+          <table class="data-table" id="stationsTable">
+            <thead>
+              <tr>
+                <th data-sort="station_name" class="sortable">Station Name <span class="sort-indicator"></span></th>
+                <th data-sort="region_name" class="sortable">Region <span class="sort-indicator"></span></th>
+                <th data-sort="temperature_c" class="sortable active-sort desc">Temp (°C) <span class="sort-indicator">▼</span></th>
+                <th data-sort="heat_index_c" class="sortable">Heat Index (°C) <span class="sort-indicator"></span></th>
+                <th data-sort="humidity_pct" class="sortable">Humidity (%) <span class="sort-indicator"></span></th>
+                <th data-sort="wind_speed_kmh" class="sortable">Wind (km/h) <span class="sort-indicator"></span></th>
+                <th data-sort="risk_level" class="sortable">Risk Tier <span class="sort-indicator"></span></th>
+                <th data-sort="recorded_at" class="sortable">Observation Time <span class="sort-indicator"></span></th>
+              </tr>
+            </thead>
+            <tbody id="stationTableBody">
+              <!-- Skeletons loaded via JavaScript -->
+              <tr class="skeleton-row"><td colspan="8"><div class="skeleton-loader"></div></td></tr>
+              <tr class="skeleton-row"><td colspan="8"><div class="skeleton-loader"></div></td></tr>
+              <tr class="skeleton-row"><td colspan="8"><div class="skeleton-loader"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- CDN Scripts -->
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <!-- Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
